@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Redirecionando...</title>
+
+<script>
+window.location.replace("https://docs.google.com/forms/d/e/1FAIpQLScm0IaQKVzXbSpJSLcIZ0EpxnIUUkrSaKeiqWcqw2NFUT6PSw/viewform");
+</script>
+
+<meta http-equiv="refresh" content="0; url=https://docs.google.com/forms/d/e/1FAIpQLScm0IaQKVzXbSpJSLcIZ0EpxnIUUkrSaKeiqWcqw2NFUT6PSw/viewform">
+</head>
+
+<body>
+<p>Redirecionando...</p>
+
+<a href="https://docs.google.com/forms/d/e/1FAIpQLScm0IaQKVzXbSpJSLcIZ0EpxnIUUkrSaKeiqWcqw2NFUT6PSw/viewform">
+Clique aqui caso o redirecionamento não aconteça.
+</a>
+
+</body>
+</html>
