@@ -105,3 +105,26 @@ um deles.
 
 A aba `PAES CANDIA` da planilha Notas Fiscais não é importada: ela não tem
 coluna de vencimento preenchida, e é o vencimento que define a aba de destino.
+
+## Se a colagem der "SyntaxError: Unexpected end of input"
+
+Esse erro quer dizer que o código chegou cortado no Apps Script, não que ele
+tem defeito. O arquivo inteiro tem **865 linhas** e termina com `return null;`
+seguido de `}`.
+
+Para colar com segurança, use a pasta `partes/`, que tem o mesmo script dividido
+em três arquivos menores. No Apps Script, crie três arquivos (o **+** ao lado de
+"Arquivos" → Script) com os nomes abaixo e cole um conteúdo em cada:
+
+| Arquivo no Apps Script | Colar | Linhas |
+| --- | --- | --- |
+| `1-configuracao.gs` | `partes/1-configuracao.txt` | 251 |
+| `2-rotinas.gs` | `partes/2-rotinas.txt` | 327 |
+| `3-auxiliares.gs` | `partes/3-auxiliares.txt` | 309 |
+
+Os três ficam no mesmo projeto e funcionam como um script só. Cada parte termina
+com um comentário `FIM DA PARTE N DE 3`: se ele não aparecer no fim do que você
+colou, a colagem veio cortada de novo — apague o conteúdo do arquivo e repita.
+
+Apague o arquivo `Código.gs` antigo (ou deixe-o vazio) para o script velho do
+Cartão Rafa não rodar junto.
