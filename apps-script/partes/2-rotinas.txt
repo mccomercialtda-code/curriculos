@@ -20,8 +20,18 @@ function copiarFixosParaProximoMes() {
     return;
   }
 
+  if (!layoutCompativel(abaOrigem)) {
+    avisar(avisoLayout(abaOrigem));
+    return;
+  }
+
   const proximoMes = somarMeses(new Date(2000 + info.ano, info.mes, 1), 1);
   const abaDestino = obterOuCriarAbaMes(ss, proximoMes);
+
+  if (!layoutCompativel(abaDestino)) {
+    avisar(avisoLayout(abaDestino));
+    return;
+  }
 
   const dados = lerLinhas(abaOrigem, COL_FORNECEDOR, ULTIMA_COLUNA_GRAVACAO);
   const novas = [];
@@ -86,8 +96,15 @@ function listarDuplicados() {
     "SUBMOTIVO", "VALOR", "VENCIMENTO", "STATUS"
   ]];
 
+  const puladas = [];
+
   ss.getSheets().forEach(aba => {
     if (!ehAbaMes(aba.getName())) return;
+
+    if (!layoutCompativel(aba)) {
+      puladas.push(aba.getName());
+      return;
+    }
 
     analisarDuplicados(aba).grupos.forEach(grupo => {
       grupo.copias.forEach(copia => {
@@ -119,7 +136,11 @@ function listarDuplicados() {
   avisar(
     `${relatorio.length - 1} linha(s) duplicada(s) encontrada(s).\n\n` +
     `Nada foi alterado. Confira a aba "${ABA_RELATORIO}" e depois use ` +
-    `"Remover duplicados" se estiver tudo certo.`
+    `"Remover duplicados" se estiver tudo certo.` +
+    (puladas.length
+      ? `\n\n${puladas.length} aba(s) de layout antigo foram puladas:\n` +
+        puladas.join(", ")
+      : "")
   );
 }
 
@@ -128,6 +149,11 @@ function removerDuplicadosAbaAtiva() {
 
   if (!ehAbaMes(aba.getName())) {
     avisar("Entre na aba do mês (ex: Setembro26) antes de executar.");
+    return;
+  }
+
+  if (!layoutCompativel(aba)) {
+    avisar(avisoLayout(aba));
     return;
   }
 
@@ -150,18 +176,34 @@ function removerDuplicadosTodasAsAbas() {
 
   let removidas = 0;
   const detalhe = [];
+  const puladas = [];
+  const comErro = [];
 
+  // cada aba vai no seu try: uma aba problemática não derruba o resto
   ss.getSheets().forEach(aba => {
     if (!ehAbaMes(aba.getName())) return;
 
-    const n = removerDuplicados(aba);
-    if (n) detalhe.push(`${aba.getName()}: ${n}`);
-    removidas += n;
+    if (!layoutCompativel(aba)) {
+      puladas.push(aba.getName());
+      return;
+    }
+
+    try {
+      const n = removerDuplicados(aba);
+      if (n) detalhe.push(`${aba.getName()}: ${n}`);
+      removidas += n;
+    } catch (e) {
+      comErro.push(`${aba.getName()}: ${e.message || e}`);
+    }
   });
 
   avisar(
     `${removidas} linha(s) duplicada(s) removida(s).\n\n` +
-    (detalhe.length ? detalhe.join("\n") : "Nenhuma aba tinha duplicados.")
+    (detalhe.length ? detalhe.join("\n") : "Nenhuma aba tinha duplicados.") +
+    (puladas.length
+      ? `\n\n${puladas.length} aba(s) de layout antigo foram puladas:\n` + puladas.join(", ")
+      : "") +
+    (comErro.length ? `\n\nAbas com erro:\n` + comErro.join("\n") : "")
   );
 }
 
@@ -176,8 +218,7 @@ function removerDuplicados(aba) {
   const bloco = analise.mantidas.slice();
   while (bloco.length < analise.totalLinhas) bloco.push(linhaEmBranco());
 
-  aplicarFormatoModelo(range);
-  range.setValues(bloco);
+  escreverComFormato(aba, range, bloco);
 
   return analise.removidas;
 }
@@ -275,6 +316,11 @@ function reformatarAbaAtiva() {
     return;
   }
 
+  if (!layoutCompativel(aba)) {
+    avisar(avisoLayout(aba));
+    return;
+  }
+
   avisar(`${reformatarAba(aba)} linha(s) reformatada(s) em "${aba.getName()}".`);
 }
 
@@ -293,14 +339,32 @@ function reformatarTodasAsAbasDeMes() {
 
   let linhas = 0;
   let abas = 0;
+  const puladas = [];
+  const comErro = [];
 
   ss.getSheets().forEach(aba => {
     if (!ehAbaMes(aba.getName())) return;
-    linhas += reformatarAba(aba);
-    abas++;
+
+    if (!layoutCompativel(aba)) {
+      puladas.push(aba.getName());
+      return;
+    }
+
+    try {
+      linhas += reformatarAba(aba);
+      abas++;
+    } catch (e) {
+      comErro.push(`${aba.getName()}: ${e.message || e}`);
+    }
   });
 
-  avisar(`${linhas} linha(s) reformatada(s) em ${abas} aba(s) de mês.`);
+  avisar(
+    `${linhas} linha(s) reformatada(s) em ${abas} aba(s) de mês.` +
+    (puladas.length
+      ? `\n\n${puladas.length} aba(s) de layout antigo foram puladas:\n` + puladas.join(", ")
+      : "") +
+    (comErro.length ? `\n\nAbas com erro:\n` + comErro.join("\n") : "")
+  );
 }
 
 function reformatarAba(aba) {
@@ -314,8 +378,7 @@ function reformatarAba(aba) {
   // que é o que traz o chip colorido de volta
   const valores = range.getValues().map(limparTextos);
 
-  aplicarFormatoModelo(range);
-  range.setValues(valores);
+  escreverComFormato(aba, range, valores);
 
   return qtd;
 }

@@ -49,8 +49,7 @@ function escreverBloco(aba, linhaInicial, linhas) {
 
   const range = aba.getRange(linhaInicial, 1, linhas.length, ULTIMA_COLUNA_GRAVACAO);
 
-  aplicarFormatoModelo(range);
-  range.setValues(linhas);
+  escreverComFormato(aba, range, linhas);
 }
 
 
@@ -58,9 +57,48 @@ function escreverBloco(aba, linhaInicial, linhas) {
    FORMATAÇÃO — sempre a partir da aba Modelo desta planilha
 --------------------------------------------------------- */
 
+// Grava um bloco de valores com a formatação certa e sem esbarrar na
+// validação de dados.
+//
+// A ordem importa. As listas suspensas estão como "rejeitar entrada", e
+// vários lançamentos antigos têm valores que não estão mais na lista
+// ("Cartão Rafa", "Casa Caco", "Dinheiro/PIX"). Gravar com a regra ativa
+// derrubava a rotina inteira com:
+//   "Os dados inseridos na célula B2 violam a validação de dados".
+// Por isso: tira a regra, grava, devolve o formato e devolve a regra.
+function escreverComFormato(aba, range, valores) {
+  const validacoes = validacoesDaLinha(aba);
+
+  range.clearDataValidations();
+  range.setValues(valores);
+
+  aplicarFormatoModelo(range);
+
+  range.setDataValidations(repetirLinha(validacoes, range.getNumRows()));
+}
+
 function aplicarFormatoModelo(range) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const modelo = buscarAba(ss, ABA_MODELO);
+  const rangeModelo = linhaModelo();
+
+  // uma linha de molde copiada sobre um bloco alto se repete em todas as linhas
+  rangeModelo.copyTo(range, SpreadsheetApp.CopyPasteType.PASTE_FORMAT, false);
+}
+
+// De onde vêm as listas suspensas: da própria aba, que está mais atualizada
+// que o Modelo (o Modelo, por exemplo, não tem a lista de STATUS e não tem
+// "Casa Caco" na forma de pagamento). Só onde a aba não tiver regra é que o
+// Modelo entra.
+function validacoesDaLinha(aba) {
+  const doModelo = linhaModelo().getDataValidations()[0];
+  const daAba = aba
+    .getRange(PRIMEIRA_LINHA_DADOS, 1, 1, ULTIMA_COLUNA_GRAVACAO)
+    .getDataValidations()[0];
+
+  return daAba.map((regra, i) => regra || doModelo[i]);
+}
+
+function linhaModelo() {
+  const modelo = buscarAba(SpreadsheetApp.getActiveSpreadsheet(), ABA_MODELO);
 
   if (!modelo) {
     throw new Error(
@@ -69,11 +107,13 @@ function aplicarFormatoModelo(range) {
     );
   }
 
-  const rangeModelo = modelo.getRange(LINHA_MODELO, 1, 1, ULTIMA_COLUNA_GRAVACAO);
+  return modelo.getRange(LINHA_MODELO, 1, 1, ULTIMA_COLUNA_GRAVACAO);
+}
 
-  // uma linha de molde copiada sobre um bloco alto se repete em todas as linhas
-  rangeModelo.copyTo(range, SpreadsheetApp.CopyPasteType.PASTE_FORMAT, false);
-  rangeModelo.copyTo(range, SpreadsheetApp.CopyPasteType.PASTE_DATA_VALIDATION, false);
+function repetirLinha(linha, quantidade) {
+  const bloco = [];
+  for (let i = 0; i < quantidade; i++) bloco.push(linha.slice());
+  return bloco;
 }
 
 
@@ -138,6 +178,21 @@ function ehAbaMes(nome) {
   return parseAbaMes(nome) !== null;
 }
 
+
+function layoutCompativel(aba) {
+  if (aba.getLastColumn() < ULTIMA_COLUNA_GRAVACAO) return false;
+
+  const cabecalho = aba.getRange(1, 1, 1, ULTIMA_COLUNA_GRAVACAO).getValues()[0];
+
+  for (const coluna in CABECALHO_ESPERADO) {
+    if (normalizarTexto(cabecalho[coluna - 1]) !== CABECALHO_ESPERADO[coluna]) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 function parseAbaMes(nome) {
   const limpo = String(nome || "").replace(/ /g, " ").trim();
   const partes = limpo.match(/^([^\d]+?)\s*([\/\-\s]?)\s*(\d{2}|\d{4})$/);
@@ -192,6 +247,14 @@ function lerLinhas(aba, colunaReferencia, colunas) {
 /* ---------------------------------------------------------
    AUXILIARES
 --------------------------------------------------------- */
+
+function avisoLayout(aba) {
+  return (
+    `A aba "${aba.getName()}" está no layout antigo (a coluna F não é ` +
+    `SUBMOTIVO). O script não mexe nessas abas para não misturar as colunas. ` +
+    `Use só nas abas de Outubro/25 em diante.`
+  );
+}
 
 function avisar(mensagem) {
   try {

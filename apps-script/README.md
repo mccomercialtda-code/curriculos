@@ -77,6 +77,33 @@ valor. Conta de luz, água e salário mudam de valor todo mês e continuam sendo
 mesmo lançamento; com a chave comum, o item 2 criaria uma segunda cópia de cada
 um deles.
 
+## Só as abas do layout de hoje
+
+As abas de mês anteriores a **Outubro/25** têm outro layout: em várias delas a
+coluna F é `VALOR` e não `SUBMOTIVO`, e em algumas a coluna A é `CATEGORIA` ou
+até `FORNECEDOR`. Comparar duplicados nessas abas usando as colunas de hoje daria
+resultado errado, então o script confere o cabeçalho (colunas C, D, F, G, H e I)
+e **pula** quem não bate, dizendo quais abas pulou.
+
+São 26 abas no layout atual, de Outubro/25 a Julho/27.
+
+## Validação de dados
+
+As listas suspensas estão como "rejeitar entrada" e há lançamentos com valores
+que não estão mais na lista (`Cartão Rafa`, `Casa Caco`, `PIX` em maiúscula).
+Gravar por cima com a regra ativa derruba a rotina com *"Os dados inseridos na
+célula B2 violam o respectivo conjunto de regras de validação de dados"*.
+
+Por isso a gravação segue esta ordem: tira a regra da faixa, grava os valores,
+devolve o formato do `Modelo` e devolve a regra.
+
+As listas suspensas vêm da **própria aba**, não do `Modelo` — o `Modelo` está
+desatualizado (a lista de forma de pagamento dele não tem `Casa Caco` nem
+`Cartão Rafa`, e ele não tem lista nenhuma em STATUS, o que apagaria o
+dropdown de `PROGRAMADO/PAGO` das linhas gravadas). Só onde a aba não tem regra
+é que a do `Modelo` entra. Cores, fontes e formato de número continuam vindo
+do `Modelo`.
+
 ## Cuidados
 
 - O script só escreve nas colunas **A:K**. `PARCELAS`, `BAR`, `TERMINA` e os
@@ -89,8 +116,11 @@ um deles.
 - Nomes de aba são reconhecidos em qualquer formato (`Setembro26`,
   `Setembro/26`, `Setembro 26`, com espaço sobrando). Ao criar um mês novo, o
   script copia o padrão que as abas existentes já usam.
-- Rode o item 3 e confira o relatório antes de usar o item 5 nas abas antigas.
-  Faça uma cópia da planilha antes da primeira limpeza.
+- Rode o item 3 e confira o relatório antes de usar o item 5. Faça uma cópia da
+  planilha antes da primeira limpeza.
+- Nos itens que varrem todas as abas, cada aba roda no seu próprio `try`: uma
+  aba com problema não derruba mais as outras, e o aviso do fim diz quais deram
+  erro.
 
 ## O que saiu do script antigo
 

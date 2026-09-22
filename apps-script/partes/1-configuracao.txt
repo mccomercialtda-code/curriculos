@@ -91,6 +91,18 @@ const COL_STATUS = 11;
 const PRIMEIRA_LINHA_DADOS = 2;
 const ULTIMA_COLUNA_GRAVACAO = COL_STATUS; // K — daqui pra direita não se mexe
 
+// As abas de mês anteriores a Outubro/25 têm outro layout (F é VALOR em vez
+// de SUBMOTIVO, A é CATEGORIA em vez de TIPO, e por aí vai). O script só
+// mexe em aba cujo cabeçalho bate com o layout de hoje nestas colunas.
+const CABECALHO_ESPERADO = {
+  3: "FORNECEDOR",
+  4: "NF",
+  6: "SUBMOTIVO",
+  7: "VALOR",
+  8: "VALOR TOTAL",
+  9: "VENCIMENTO"
+};
+
 
 /* ---------------------------------------------------------
    MENU
@@ -149,6 +161,7 @@ function importarNotaFiscal() {
   const limite = new Date(hoje.getFullYear(), hoje.getMonth() - MESES_PARA_TRAS, 1);
 
   const lotes = {};
+  const puladas = [];
   let semVencimento = 0;
   let antigos = 0;
 
@@ -171,6 +184,11 @@ function importarNotaFiscal() {
       const data = somarMeses(vencimento, p);
       const aba = obterOuCriarAbaMes(ss, data);
 
+      if (!layoutCompativel(aba)) {
+        if (puladas.indexOf(aba.getName()) === -1) puladas.push(aba.getName());
+        continue;
+      }
+
       if (!lotes[aba.getName()]) lotes[aba.getName()] = { aba: aba, linhas: [] };
       lotes[aba.getName()].linhas.push(montarLinhaDaOrigem(linha, data));
     }
@@ -192,7 +210,8 @@ function importarNotaFiscal() {
     (abasTocadas.length ? `Abas: ${abasTocadas.join(", ")}\n\n` : "") +
     `Já existiam aqui (ignorados): ${duplicados}\n` +
     `Ignorados sem vencimento: ${semVencimento}\n` +
-    `Ignorados por serem de meses fechados: ${antigos}`
+    `Ignorados por serem de meses fechados: ${antigos}` +
+    (puladas.length ? `\n\nAbas de layout antigo puladas: ${puladas.join(", ")}` : "")
   );
 }
 
