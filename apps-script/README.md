@@ -87,22 +87,38 @@ e **pula** quem não bate, dizendo quais abas pulou.
 
 São 26 abas no layout atual, de Outubro/25 a Julho/27.
 
-## Validação de dados
+## Validação de dados e a cor dos chips
 
-As listas suspensas estão como "rejeitar entrada" e há lançamentos com valores
-que não estão mais na lista (`Cartão Rafa`, `Casa Caco`, `PIX` em maiúscula).
-Gravar por cima com a regra ativa derruba a rotina com *"Os dados inseridos na
-célula B2 violam o respectivo conjunto de regras de validação de dados"*.
+**A cor do chip faz parte da regra de validação**, não do formato da célula.
+E só o `copyTo` carrega essa cor: uma regra lida com `getDataValidations` e
+regravada com `setDataValidations` volta como chip cinza. Por isso as colunas
+que o `Modelo` define (TIPO, FORMA DE PAGAMENTO, MOTIVO, SUBMOTIVO) têm a
+validação copiada do `Modelo` com `copyTo`, coluna por coluna.
 
-Por isso a gravação segue esta ordem: tira a regra da faixa, grava os valores,
-devolve o formato do `Modelo` e devolve a regra.
+As colunas que o `Modelo` **não** define voltam como estavam na aba — é o caso
+de STATUS, que no `Modelo` não tem lista nenhuma: sem essa reserva o dropdown
+de `PROGRAMADO/PAGO` sumiria das linhas gravadas. Essas voltam sem a cor do
+chip; para elas ficarem coloridas também, basta criar a regra na linha 2 do
+`Modelo`.
 
-As listas suspensas vêm da **própria aba**, não do `Modelo` — o `Modelo` está
-desatualizado (a lista de forma de pagamento dele não tem `Casa Caco` nem
-`Cartão Rafa`, e ele não tem lista nenhuma em STATUS, o que apagaria o
-dropdown de `PROGRAMADO/PAGO` das linhas gravadas). Só onde a aba não tem regra
-é que a do `Modelo` entra. Cores, fontes e formato de número continuam vindo
-do `Modelo`.
+As listas suspensas são "rejeitar entrada" e há lançamentos com valores que não
+estão nelas (`Cartão Rafa`, `Casa Caco`, `PIX` em maiúscula, `1` e `0` em
+STATUS). Gravar por cima com a regra ativa derruba a rotina com *"Os dados
+inseridos na célula B2 violam o respectivo conjunto de regras de validação de
+dados"*. Então a gravação segue esta ordem:
+
+1. tira a validação da faixa;
+2. grava os valores;
+3. copia o formato do `Modelo`;
+4. devolve a validação (do `Modelo` por `copyTo`, ou a da aba onde o `Modelo`
+   não define).
+
+Nenhum valor é alterado nem apagado nesse processo. Ao reformatar, o aviso do
+fim lista os valores que não estão nas listas do `Modelo` — é o que falta
+acrescentar lá para o chip ficar colorido. Hoje são, entre outros,
+`Cartão Rafa`, `Casa Caco`, `Cartão Carol`, `Carão Rafa` (com o erro de
+digitação) e `Dinheiro/PIX` na forma de pagamento; `MÚSICA` no motivo; e
+`RETIRADA DE LUCRO`, `PULSEIRA COUVERT` e `RESCISÃO CONTRATUAL` no submotivo.
 
 ## Cuidados
 

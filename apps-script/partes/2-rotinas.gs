@@ -321,7 +321,12 @@ function reformatarAbaAtiva() {
     return;
   }
 
-  avisar(`${reformatarAba(aba)} linha(s) reformatada(s) em "${aba.getName()}".`);
+  const resultado = reformatarAba(aba);
+
+  avisar(
+    `${resultado.linhas} linha(s) reformatada(s) em "${aba.getName()}".` +
+    avisoValoresForaDaLista(resultado.fora)
+  );
 }
 
 function reformatarTodasAsAbasDeMes() {
@@ -341,6 +346,7 @@ function reformatarTodasAsAbasDeMes() {
   let abas = 0;
   const puladas = [];
   const comErro = [];
+  const fora = {};
 
   ss.getSheets().forEach(aba => {
     if (!ehAbaMes(aba.getName())) return;
@@ -351,15 +357,24 @@ function reformatarTodasAsAbasDeMes() {
     }
 
     try {
-      linhas += reformatarAba(aba);
+      const resultado = reformatarAba(aba);
+      linhas += resultado.linhas;
+      Object.keys(resultado.fora).forEach(c => {
+        fora[c] = fora[c] || {};
+        resultado.fora[c].forEach(v => { fora[c][v] = true; });
+      });
       abas++;
     } catch (e) {
       comErro.push(`${aba.getName()}: ${e.message || e}`);
     }
   });
 
+  const foraLista = {};
+  Object.keys(fora).forEach(c => { foraLista[c] = Object.keys(fora[c]); });
+
   avisar(
     `${linhas} linha(s) reformatada(s) em ${abas} aba(s) de mês.` +
+    avisoValoresForaDaLista(foraLista) +
     (puladas.length
       ? `\n\n${puladas.length} aba(s) de layout antigo foram puladas:\n` + puladas.join(", ")
       : "") +
@@ -369,7 +384,7 @@ function reformatarTodasAsAbasDeMes() {
 
 function reformatarAba(aba) {
   const ultima = ultimaLinhaDados(aba, COL_FORNECEDOR);
-  if (ultima < PRIMEIRA_LINHA_DADOS) return 0;
+  if (ultima < PRIMEIRA_LINHA_DADOS) return { linhas: 0, fora: {} };
 
   const qtd = ultima - PRIMEIRA_LINHA_DADOS + 1;
   const range = aba.getRange(PRIMEIRA_LINHA_DADOS, 1, qtd, ULTIMA_COLUNA_GRAVACAO);
@@ -380,7 +395,7 @@ function reformatarAba(aba) {
 
   escreverComFormato(aba, range, valores);
 
-  return qtd;
+  return { linhas: qtd, fora: valoresForaDaLista(valores) };
 }
 
 

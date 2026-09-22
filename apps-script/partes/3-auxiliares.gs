@@ -60,41 +60,109 @@ function escreverBloco(aba, linhaInicial, linhas) {
 // Grava um bloco de valores com a formatação certa e sem esbarrar na
 // validação de dados.
 //
-// A ordem importa. As listas suspensas estão como "rejeitar entrada", e
-// vários lançamentos antigos têm valores que não estão mais na lista
-// ("Cartão Rafa", "Casa Caco", "Dinheiro/PIX"). Gravar com a regra ativa
-// derrubava a rotina inteira com:
-//   "Os dados inseridos na célula B2 violam a validação de dados".
-// Por isso: tira a regra, grava, devolve o formato e devolve a regra.
+// A ordem importa por dois motivos.
+//
+// 1) As listas suspensas estão como "rejeitar entrada" e vários lançamentos
+//    têm valores que não estão na lista ("Cartão Rafa", "Casa Caco", "PIX"
+//    em maiúscula). Gravar com a regra ativa derrubava a rotina inteira com
+//    "os dados inseridos na célula B2 violam a validação de dados".
+//    Por isso a regra sai antes da gravação e volta depois.
+//
+// 2) A cor do chip faz parte da regra de validação, e só o copyTo a carrega:
+//    reconstruir a regra com setDataValidations devolve o chip cinza. Então
+//    as colunas que o Modelo define voltam por copyTo, a partir do Modelo.
+//    As que o Modelo não define (STATUS, por exemplo) voltam como estavam.
 function escreverComFormato(aba, range, valores) {
-  const validacoes = validacoesDaLinha(aba);
+  const reserva = validacoesDeReserva(aba);
 
   range.clearDataValidations();
   range.setValues(valores);
 
   aplicarFormatoModelo(range);
-
-  range.setDataValidations(repetirLinha(validacoes, range.getNumRows()));
+  devolverValidacoes(range, reserva);
 }
 
+// Formato e listas suspensas a partir da linha 2 da aba Modelo.
 function aplicarFormatoModelo(range) {
-  const rangeModelo = linhaModelo();
+  const modelo = linhaModelo();
 
   // uma linha de molde copiada sobre um bloco alto se repete em todas as linhas
-  rangeModelo.copyTo(range, SpreadsheetApp.CopyPasteType.PASTE_FORMAT, false);
+  modelo.copyTo(range, SpreadsheetApp.CopyPasteType.PASTE_FORMAT, false);
+
+  modelo.getDataValidations()[0].forEach((regra, i) => {
+    if (!regra) return;
+
+    modelo.getSheet()
+      .getRange(LINHA_MODELO, i + 1)
+      .copyTo(
+        colunaDoBloco(range, i + 1),
+        SpreadsheetApp.CopyPasteType.PASTE_DATA_VALIDATION,
+        false
+      );
+  });
 }
 
-// De onde vêm as listas suspensas: da própria aba, que está mais atualizada
-// que o Modelo (o Modelo, por exemplo, não tem a lista de STATUS e não tem
-// "Casa Caco" na forma de pagamento). Só onde a aba não tiver regra é que o
-// Modelo entra.
-function validacoesDaLinha(aba) {
+// Regras das colunas que o Modelo não define, para não perdê-las na gravação.
+// O Modelo, por exemplo, não tem lista em STATUS, e sem isso o dropdown de
+// PROGRAMADO/PAGO sumiria das linhas gravadas.
+function validacoesDeReserva(aba) {
   const doModelo = linhaModelo().getDataValidations()[0];
   const daAba = aba
     .getRange(PRIMEIRA_LINHA_DADOS, 1, 1, ULTIMA_COLUNA_GRAVACAO)
     .getDataValidations()[0];
 
-  return daAba.map((regra, i) => regra || doModelo[i]);
+  return daAba.map((regra, i) => (doModelo[i] ? null : regra));
+}
+
+function devolverValidacoes(range, reserva) {
+  reserva.forEach((regra, i) => {
+    if (!regra) return;
+
+    const coluna = colunaDoBloco(range, i + 1);
+    coluna.setDataValidations(repetirLinha([regra], coluna.getNumRows()));
+  });
+}
+
+function colunaDoBloco(range, coluna) {
+  return range.getSheet().getRange(range.getRow(), coluna, range.getNumRows(), 1);
+}
+
+// Valores gravados que a lista do Modelo não aceita. Não impedem nada
+// (a regra entra depois da gravação), mas viram aviso: é o que falta
+// acrescentar na linha 2 do Modelo.
+function valoresForaDaLista(valores) {
+  const regras = linhaModelo().getDataValidations()[0];
+  const fora = {};
+
+  regras.forEach((regra, i) => {
+    if (!regra) return;
+    if (regra.getCriteriaType() !== SpreadsheetApp.DataValidationCriteria.VALUE_IN_LIST) return;
+
+    const lista = (regra.getCriteriaValues()[0] || []).map(normalizarTexto);
+    const achados = {};
+
+    valores.forEach(linha => {
+      const valor = String(linha[i] === null || linha[i] === undefined ? "" : linha[i]).trim();
+      if (!valor) return;
+      if (lista.indexOf(normalizarTexto(valor)) === -1) achados[valor] = true;
+    });
+
+    const chaves = Object.keys(achados);
+    if (chaves.length) fora[COLUNA_LETRA[i]] = chaves;
+  });
+
+  return fora;
+}
+
+function avisoValoresForaDaLista(fora) {
+  const colunas = Object.keys(fora);
+  if (!colunas.length) return "";
+
+  return (
+    "\n\nValores que não estão nas listas do Modelo (o chip fica sem cor até " +
+    "você acrescentá-los na linha 2 do Modelo):\n" +
+    colunas.map(c => `${c}: ${fora[c].join(", ")}`).join("\n")
+  );
 }
 
 function linhaModelo() {

@@ -94,6 +94,8 @@ const ULTIMA_COLUNA_GRAVACAO = COL_STATUS; // K — daqui pra direita não se me
 // As abas de mês anteriores a Outubro/25 têm outro layout (F é VALOR em vez
 // de SUBMOTIVO, A é CATEGORIA em vez de TIPO, e por aí vai). O script só
 // mexe em aba cujo cabeçalho bate com o layout de hoje nestas colunas.
+const COLUNA_LETRA = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K"];
+
 const CABECALHO_ESPERADO = {
   3: "FORNECEDOR",
   4: "NF",

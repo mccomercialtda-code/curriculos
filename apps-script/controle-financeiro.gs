@@ -90,6 +90,8 @@ const ULTIMA_COLUNA_GRAVACAO = COL_STATUS; // K — daqui pra direita não se me
 // As abas de mês anteriores a Outubro/25 têm outro layout (F é VALOR em vez
 // de SUBMOTIVO, A é CATEGORIA em vez de TIPO, e por aí vai). O script só
 // mexe em aba cujo cabeçalho bate com o layout de hoje nestas colunas.
+const COLUNA_LETRA = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K"];
+
 const CABECALHO_ESPERADO = {
   3: "FORNECEDOR",
   4: "NF",
@@ -580,7 +582,12 @@ function reformatarAbaAtiva() {
     return;
   }
 
-  avisar(`${reformatarAba(aba)} linha(s) reformatada(s) em "${aba.getName()}".`);
+  const resultado = reformatarAba(aba);
+
+  avisar(
+    `${resultado.linhas} linha(s) reformatada(s) em "${aba.getName()}".` +
+    avisoValoresForaDaLista(resultado.fora)
+  );
 }
 
 function reformatarTodasAsAbasDeMes() {
@@ -600,6 +607,7 @@ function reformatarTodasAsAbasDeMes() {
   let abas = 0;
   const puladas = [];
   const comErro = [];
+  const fora = {};
 
   ss.getSheets().forEach(aba => {
     if (!ehAbaMes(aba.getName())) return;
@@ -610,15 +618,24 @@ function reformatarTodasAsAbasDeMes() {
     }
 
     try {
-      linhas += reformatarAba(aba);
+      const resultado = reformatarAba(aba);
+      linhas += resultado.linhas;
+      Object.keys(resultado.fora).forEach(c => {
+        fora[c] = fora[c] || {};
+        resultado.fora[c].forEach(v => { fora[c][v] = true; });
+      });
       abas++;
     } catch (e) {
       comErro.push(`${aba.getName()}: ${e.message || e}`);
     }
   });
 
+  const foraLista = {};
+  Object.keys(fora).forEach(c => { foraLista[c] = Object.keys(fora[c]); });
+
   avisar(
     `${linhas} linha(s) reformatada(s) em ${abas} aba(s) de mês.` +
+    avisoValoresForaDaLista(foraLista) +
     (puladas.length
       ? `\n\n${puladas.length} aba(s) de layout antigo foram puladas:\n` + puladas.join(", ")
       : "") +
@@ -628,7 +645,7 @@ function reformatarTodasAsAbasDeMes() {
 
 function reformatarAba(aba) {
   const ultima = ultimaLinhaDados(aba, COL_FORNECEDOR);
-  if (ultima < PRIMEIRA_LINHA_DADOS) return 0;
+  if (ultima < PRIMEIRA_LINHA_DADOS) return { linhas: 0, fora: {} };
 
   const qtd = ultima - PRIMEIRA_LINHA_DADOS + 1;
   const range = aba.getRange(PRIMEIRA_LINHA_DADOS, 1, qtd, ULTIMA_COLUNA_GRAVACAO);
@@ -639,7 +656,7 @@ function reformatarAba(aba) {
 
   escreverComFormato(aba, range, valores);
 
-  return qtd;
+  return { linhas: qtd, fora: valoresForaDaLista(valores) };
 }
 
 
@@ -702,41 +719,109 @@ function escreverBloco(aba, linhaInicial, linhas) {
 // Grava um bloco de valores com a formatação certa e sem esbarrar na
 // validação de dados.
 //
-// A ordem importa. As listas suspensas estão como "rejeitar entrada", e
-// vários lançamentos antigos têm valores que não estão mais na lista
-// ("Cartão Rafa", "Casa Caco", "Dinheiro/PIX"). Gravar com a regra ativa
-// derrubava a rotina inteira com:
-//   "Os dados inseridos na célula B2 violam a validação de dados".
-// Por isso: tira a regra, grava, devolve o formato e devolve a regra.
+// A ordem importa por dois motivos.
+//
+// 1) As listas suspensas estão como "rejeitar entrada" e vários lançamentos
+//    têm valores que não estão na lista ("Cartão Rafa", "Casa Caco", "PIX"
+//    em maiúscula). Gravar com a regra ativa derrubava a rotina inteira com
+//    "os dados inseridos na célula B2 violam a validação de dados".
+//    Por isso a regra sai antes da gravação e volta depois.
+//
+// 2) A cor do chip faz parte da regra de validação, e só o copyTo a carrega:
+//    reconstruir a regra com setDataValidations devolve o chip cinza. Então
+//    as colunas que o Modelo define voltam por copyTo, a partir do Modelo.
+//    As que o Modelo não define (STATUS, por exemplo) voltam como estavam.
 function escreverComFormato(aba, range, valores) {
-  const validacoes = validacoesDaLinha(aba);
+  const reserva = validacoesDeReserva(aba);
 
   range.clearDataValidations();
   range.setValues(valores);
 
   aplicarFormatoModelo(range);
-
-  range.setDataValidations(repetirLinha(validacoes, range.getNumRows()));
+  devolverValidacoes(range, reserva);
 }
 
+// Formato e listas suspensas a partir da linha 2 da aba Modelo.
 function aplicarFormatoModelo(range) {
-  const rangeModelo = linhaModelo();
+  const modelo = linhaModelo();
 
   // uma linha de molde copiada sobre um bloco alto se repete em todas as linhas
-  rangeModelo.copyTo(range, SpreadsheetApp.CopyPasteType.PASTE_FORMAT, false);
+  modelo.copyTo(range, SpreadsheetApp.CopyPasteType.PASTE_FORMAT, false);
+
+  modelo.getDataValidations()[0].forEach((regra, i) => {
+    if (!regra) return;
+
+    modelo.getSheet()
+      .getRange(LINHA_MODELO, i + 1)
+      .copyTo(
+        colunaDoBloco(range, i + 1),
+        SpreadsheetApp.CopyPasteType.PASTE_DATA_VALIDATION,
+        false
+      );
+  });
 }
 
-// De onde vêm as listas suspensas: da própria aba, que está mais atualizada
-// que o Modelo (o Modelo, por exemplo, não tem a lista de STATUS e não tem
-// "Casa Caco" na forma de pagamento). Só onde a aba não tiver regra é que o
-// Modelo entra.
-function validacoesDaLinha(aba) {
+// Regras das colunas que o Modelo não define, para não perdê-las na gravação.
+// O Modelo, por exemplo, não tem lista em STATUS, e sem isso o dropdown de
+// PROGRAMADO/PAGO sumiria das linhas gravadas.
+function validacoesDeReserva(aba) {
   const doModelo = linhaModelo().getDataValidations()[0];
   const daAba = aba
     .getRange(PRIMEIRA_LINHA_DADOS, 1, 1, ULTIMA_COLUNA_GRAVACAO)
     .getDataValidations()[0];
 
-  return daAba.map((regra, i) => regra || doModelo[i]);
+  return daAba.map((regra, i) => (doModelo[i] ? null : regra));
+}
+
+function devolverValidacoes(range, reserva) {
+  reserva.forEach((regra, i) => {
+    if (!regra) return;
+
+    const coluna = colunaDoBloco(range, i + 1);
+    coluna.setDataValidations(repetirLinha([regra], coluna.getNumRows()));
+  });
+}
+
+function colunaDoBloco(range, coluna) {
+  return range.getSheet().getRange(range.getRow(), coluna, range.getNumRows(), 1);
+}
+
+// Valores gravados que a lista do Modelo não aceita. Não impedem nada
+// (a regra entra depois da gravação), mas viram aviso: é o que falta
+// acrescentar na linha 2 do Modelo.
+function valoresForaDaLista(valores) {
+  const regras = linhaModelo().getDataValidations()[0];
+  const fora = {};
+
+  regras.forEach((regra, i) => {
+    if (!regra) return;
+    if (regra.getCriteriaType() !== SpreadsheetApp.DataValidationCriteria.VALUE_IN_LIST) return;
+
+    const lista = (regra.getCriteriaValues()[0] || []).map(normalizarTexto);
+    const achados = {};
+
+    valores.forEach(linha => {
+      const valor = String(linha[i] === null || linha[i] === undefined ? "" : linha[i]).trim();
+      if (!valor) return;
+      if (lista.indexOf(normalizarTexto(valor)) === -1) achados[valor] = true;
+    });
+
+    const chaves = Object.keys(achados);
+    if (chaves.length) fora[COLUNA_LETRA[i]] = chaves;
+  });
+
+  return fora;
+}
+
+function avisoValoresForaDaLista(fora) {
+  const colunas = Object.keys(fora);
+  if (!colunas.length) return "";
+
+  return (
+    "\n\nValores que não estão nas listas do Modelo (o chip fica sem cor até " +
+    "você acrescentá-los na linha 2 do Modelo):\n" +
+    colunas.map(c => `${c}: ${fora[c].join(", ")}`).join("\n")
+  );
 }
 
 function linhaModelo() {
