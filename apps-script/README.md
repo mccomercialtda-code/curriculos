@@ -31,6 +31,27 @@ Os dois IDs já estão preenchidos no topo do arquivo.
 | 5) Remover duplicados (todas as abas de mês) | O mesmo, em todas as abas de mês — inclusive as antigas e as ocultas. |
 | 6) Reformatar aba ativa pelo Modelo | Reaplica a formatação da aba `Modelo` em A:K, preservando os valores. |
 | 7) Reformatar todas as abas de mês | O mesmo, em todas as abas de mês. |
+| 8) Ver acionadores automáticos | Lista as rotinas que o Google dispara sozinho (ao abrir, ao editar, de hora em hora). |
+| 9) Remover acionadores automáticos | Apaga todos eles, com confirmação. |
+
+## A planilha duplica sozinha ao abrir
+
+Nenhuma rotina deste script roda sozinha: o `onOpen` daqui só monta o menu e
+não grava nada. Se a planilha duplica lançamentos toda vez que é aberta, quem
+faz isso é um **acionador instalado** (trigger) que sobrou do script antigo,
+chamando a importação a cada abertura.
+
+Use o item **8** para ver quais existem e o **9** para apagá-los. Se o item 8
+não listar nada e mesmo assim continuar duplicando, são duas as causas
+possíveis:
+
+- **Sobrou arquivo de script antigo no projeto.** No editor do Apps Script,
+  olhe a lista de "Arquivos" à esquerda: só devem existir
+  `1-configuracao`, `2-rotinas` e `3-auxiliares`. Se houver um `Código.gs` (ou
+  qualquer outro) com um `onOpen` que chama importação, apague o arquivo.
+- **O acionador é de outra conta do Google.** Cada conta só enxerga os próprios
+  acionadores, e um acionador criado por outra pessoa continua disparando. Nesse
+  caso, quem criou precisa abrir o mesmo projeto e remover.
 
 ## De onde vem cada coluna na importação
 

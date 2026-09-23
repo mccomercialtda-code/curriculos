@@ -118,7 +118,80 @@ function onOpen() {
     .addSeparator()
     .addItem("6) Reformatar aba ativa pelo Modelo", "reformatarAbaAtiva")
     .addItem("7) Reformatar todas as abas de mês", "reformatarTodasAsAbasDeMes")
+    .addSeparator()
+    .addItem("8) Ver acionadores automáticos", "listarAcionadores")
+    .addItem("9) Remover acionadores automáticos", "removerAcionadores")
     .addToUi();
+}
+
+
+/* ---------------------------------------------------------
+   8 e 9) ACIONADORES AUTOMÁTICOS
+
+   Acionador instalado é a rotina que o Google dispara sozinho:
+   ao abrir a planilha, ao editar, ou de hora em hora. Nenhuma
+   das rotinas deste script cria acionador — o onOpen daqui só
+   monta o menu, não grava nada.
+
+   Se a planilha duplica lançamentos sozinha ao ser aberta, é
+   um acionador antigo chamando a importação a cada abertura.
+   O item 8 mostra quais existem e o 9 apaga todos.
+--------------------------------------------------------- */
+
+function listarAcionadores() {
+  const gatilhos = ScriptApp.getProjectTriggers();
+
+  if (!gatilhos.length) {
+    avisar(
+      "Nenhum acionador instalado neste projeto de script.\n\n" +
+      "Se mesmo assim a planilha duplica sozinha ao abrir, a causa está " +
+      "num arquivo de script antigo que ficou no projeto (um onOpen que " +
+      "chama a importação), ou num acionador criado por outra conta do " +
+      "Google — cada conta só enxerga os próprios acionadores."
+    );
+    return;
+  }
+
+  avisar(
+    `${gatilhos.length} acionador(es) instalado(s):\n\n` +
+    gatilhos.map(descreverAcionador).join("\n") +
+    "\n\nNenhuma rotina deste script precisa de acionador: tudo roda pelo " +
+    "menu. Se algum deles chama uma importação, é ele que está duplicando " +
+    "os lançamentos a cada abertura — use o item 9."
+  );
+}
+
+function removerAcionadores() {
+  const gatilhos = ScriptApp.getProjectTriggers();
+
+  if (!gatilhos.length) {
+    avisar("Não há acionador instalado para remover.");
+    return;
+  }
+
+  const ui = SpreadsheetApp.getUi();
+  const resposta = ui.alert(
+    "Remover todos os acionadores automáticos?",
+    `Serão removidos ${gatilhos.length}:\n\n` +
+    gatilhos.map(descreverAcionador).join("\n") +
+    "\n\nAs rotinas do menu continuam funcionando normalmente.",
+    ui.ButtonSet.YES_NO
+  );
+
+  if (resposta !== ui.Button.YES) return;
+
+  const removidos = [];
+
+  gatilhos.forEach(gatilho => {
+    removidos.push(descreverAcionador(gatilho));
+    ScriptApp.deleteTrigger(gatilho);
+  });
+
+  avisar(`${removidos.length} acionador(es) removido(s):\n\n` + removidos.join("\n"));
+}
+
+function descreverAcionador(gatilho) {
+  return `• ${gatilho.getHandlerFunction()} — dispara em ${gatilho.getEventType()}`;
 }
 
 
